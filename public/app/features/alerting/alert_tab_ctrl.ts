@@ -14,6 +14,7 @@ export class AlertTabCtrl {
   conditionTypes: any;
   alert: any;
   conditionModels: any;
+  conditionGroupModels: any;
   evalFunctions: any;
   evalOperators: any;
   noDataModes: any;
@@ -163,6 +164,10 @@ export class AlertTabCtrl {
     if (alert.conditions.length === 0) {
       alert.conditions.push(this.buildDefaultCondition());
     }
+    alert.conditionGroups = alert.conditionGroups || [];
+    if (alert.conditionGroups.length === 0) {
+      alert.conditionGroups.push([this.buildDefaultCondition()]);
+    }
 
     alert.noDataState = alert.noDataState || 'no_data';
     alert.executionErrorState = alert.executionErrorState || 'alerting';
@@ -181,6 +186,17 @@ export class AlertTabCtrl {
       },
       []
     );
+    this.conditionGroupModels = alert.conditionGroups.map(group => {
+      let groupModels = _.reduce(
+        group,
+        (memo, value) => {
+          memo.push(this.buildConditionModel(value));
+          return memo;
+        },
+        []
+      );
+      return groupModels;
+    });
 
     ThresholdMapper.alertToGraphThresholds(this.panel);
 
@@ -202,14 +218,18 @@ export class AlertTabCtrl {
 
     this.panelCtrl.editingThresholds = true;
     this.panelCtrl.render();
+
+    this.validateModel();
   }
 
   graphThresholdChanged(evt) {
-    for (var condition of this.alert.conditions) {
-      if (condition.type === 'query') {
-        condition.evaluator.params[evt.handleIndex] = evt.threshold.value;
-        this.evaluatorParamsChanged();
-        break;
+    for (var conditionGroup of this.alert.conditionGroups) {
+      for (var condition of conditionGroup) {
+        if (condition.type === 'query') {
+          condition.evaluator.params[evt.handleIndex] = evt.threshold.value;
+          this.evaluatorParamsChanged();
+          break;
+        }
       }
     }
   }
@@ -232,40 +252,46 @@ export class AlertTabCtrl {
     let firstTarget;
     let foundTarget = null;
 
-    for (var condition of this.alert.conditions) {
-      if (condition.type !== 'query') {
-        continue;
-      }
+    for (var conditionGroup of this.alert.conditionGroups) {
+      for (var condition of conditionGroup) {
+        if (condition.type !== 'query') {
+          continue;
+        }
 
-      for (var target of this.panel.targets) {
-        if (!firstTarget) {
-          firstTarget = target;
+        for (var target of this.panel.targets) {
+          if (!firstTarget) {
+            firstTarget = target;
+          }
+          if (condition.query.params[0] === target.refId) {
+            foundTarget = target;
+            break;
+          }
         }
-        if (condition.query.params[0] === target.refId) {
-          foundTarget = target;
-          break;
-        }
-      }
 
-      if (!foundTarget) {
-        if (firstTarget) {
-          condition.query.params[0] = firstTarget.refId;
-          foundTarget = firstTarget;
-        } else {
-          this.error = 'Could not find any metric queries';
+        if (!foundTarget) {
+          if (firstTarget) {
+            condition.query.params[0] = firstTarget.refId;
+            foundTarget = firstTarget;
+          } else {
+            this.error = 'Could not find any metric queries';
+          }
         }
-      }
 
-      var datasourceName = foundTarget.datasource || this.panel.datasource;
-      this.datasourceSrv.get(datasourceName).then(ds => {
-        if (!ds.meta.alerting) {
-          this.error = 'The datasource does not support alerting queries';
-        } else if (ds.targetContainsTemplate(foundTarget)) {
-          this.error = 'Template variables are not supported in alert queries';
-        } else {
-          this.error = '';
-        }
-      });
+        var datasourceName = foundTarget.datasource || this.panel.datasource;
+        this.datasourceSrv.get(datasourceName).then(ds => {
+          if (!ds.meta.alerting) {
+            this.error = 'The datasource does not support alerting queries';
+          } else if (ds.targetContainsTemplate(foundTarget)) {
+            this.error = 'Template variables are not supported in alert queries';
+          } else {
+            this.error = '';
+          }
+        });
+
+        // add model to condition's query
+        console.log(foundTarget);
+        condition.query.model = foundTarget;
+      }
     }
   }
 
@@ -320,17 +346,39 @@ export class AlertTabCtrl {
     }
   }
 
-  addCondition(type) {
+  addCondition(type, groupIndex) {
     var condition = this.buildDefaultCondition();
     // add to persited model
-    this.alert.conditions.push(condition);
+    // this.alert.conditions.push(condition);
+    this.alert.conditionGroups[groupIndex].push(condition);
     // add to view model
-    this.conditionModels.push(this.buildConditionModel(condition));
+    // this.conditionModels.push(this.buildConditionModel(condition));
+    this.conditionGroupModels[groupIndex].push(this.buildConditionModel(condition));
   }
 
-  removeCondition(index) {
-    this.alert.conditions.splice(index, 1);
-    this.conditionModels.splice(index, 1);
+  removeCondition(groupIndex, index) {
+    console.log('remove ' + groupIndex + ', ' + index);
+    if (this.alert.conditionGroups.length === 1) {
+      this.removeConditionGroup(groupIndex);
+    } else {
+      this.alert.conditionGroups[groupIndex].splice(index, 1);
+      this.conditionGroupModels[groupIndex].splice(index, 1);
+    }
+  }
+
+  addConditionGroup() {
+    var condition = this.buildDefaultCondition();
+    // add to persited model
+    this.alert.conditionGroups.push([condition]);
+    // add to view model
+    this.conditionGroupModels.push([this.buildConditionModel(condition)]);
+
+    this.validateModel();
+  }
+
+  removeConditionGroup(index) {
+    this.alert.conditionGroups.splice(index, 1);
+    this.conditionGroupModels.splice(index, 1);
   }
 
   delete() {
@@ -345,6 +393,7 @@ export class AlertTabCtrl {
         this.alert = null;
         this.panel.thresholds = [];
         this.conditionModels = [];
+        this.conditionGroupModels = [];
         this.panelCtrl.alertState = null;
         this.panelCtrl.render();
       },
