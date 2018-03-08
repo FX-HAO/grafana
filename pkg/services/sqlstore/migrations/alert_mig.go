@@ -82,4 +82,8 @@ func addAlertMigrations(mg *Migrator) {
 		{Name: "type", Type: DB_NVarchar, Length: 255, Nullable: false},
 		{Name: "settings", Type: DB_Text, Nullable: false},
 	}))
+
+	mg.AddMigration("Add column firing_groups to table alert", NewAddColumnMigration(alertV1, &Column{
+		Name: "firing_groups", Type: DB_Int, Nullable: true, Default: "0",
+	}))
 }

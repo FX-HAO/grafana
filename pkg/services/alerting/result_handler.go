@@ -44,14 +44,15 @@ func (handler *DefaultResultHandler) Handle(evalContext *EvalContext) error {
 
 	metrics.M_Alerting_Result_State.WithLabelValues(string(evalContext.Rule.State)).Inc()
 	if evalContext.ShouldUpdateAlertState() {
-		handler.log.Info("New state change", "alertId", evalContext.Rule.Id, "newState", evalContext.Rule.State, "prev state", evalContext.PrevAlertState)
+		handler.log.Info("New state change", "alertId", evalContext.Rule.Id, "newState", evalContext.Rule.State, "prev state", evalContext.PrevAlertState, "newFiringGroups", evalContext.Rule.FiringGroups, "prevFiringGroups", evalContext.PrevFiringGroups)
 
 		cmd := &m.SetAlertStateCommand{
-			AlertId:  evalContext.Rule.Id,
-			OrgId:    evalContext.Rule.OrgId,
-			State:    evalContext.Rule.State,
-			Error:    executionError,
-			EvalData: annotationData,
+			AlertId:      evalContext.Rule.Id,
+			OrgId:        evalContext.Rule.OrgId,
+			State:        evalContext.Rule.State,
+			Error:        executionError,
+			EvalData:     annotationData,
+			FiringGroups: evalContext.Rule.FiringGroups,
 		}
 
 		if err := bus.Dispatch(cmd); err != nil {

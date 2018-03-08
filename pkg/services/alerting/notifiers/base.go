@@ -27,6 +27,9 @@ func NewNotifierBase(id int64, isDefault bool, name, notifierType string, model 
 }
 
 func defaultShouldNotify(context *alerting.EvalContext) bool {
+	if context.PrevFiringGroups != context.Rule.FiringGroups {
+		return true
+	}
 	if context.PrevAlertState == context.Rule.State {
 		return false
 	}

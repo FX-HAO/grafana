@@ -238,7 +238,7 @@ func SetAlertState(cmd *m.SetAlertStateCommand) error {
 			return m.ErrCannotChangeStateOnPausedAlert
 		}
 
-		if alert.State == cmd.State {
+		if alert.State == cmd.State && alert.FiringGroups == cmd.FiringGroups {
 			return m.ErrRequiresNewState
 		}
 
@@ -246,6 +246,7 @@ func SetAlertState(cmd *m.SetAlertStateCommand) error {
 		alert.StateChanges += 1
 		alert.NewStateDate = time.Now()
 		alert.EvalData = cmd.EvalData
+		alert.FiringGroups = cmd.FiringGroups
 
 		if cmd.Error == "" {
 			alert.ExecutionError = " " //without this space, xorm skips updating this field
