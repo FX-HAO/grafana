@@ -22,7 +22,9 @@ type Rule struct {
 	ExecutionErrorState m.ExecutionErrorOption
 	State               m.AlertStateType
 	Conditions          []Condition
+	ConditionGroups     [][]Condition
 	Notifications       []int64
+	FiringGroups        int
 }
 
 type ValidationError struct {
@@ -100,6 +102,7 @@ func NewRuleFromDBAlert(ruleDef *m.Alert) (*Rule, error) {
 	model.State = ruleDef.State
 	model.NoDataState = m.NoDataOption(ruleDef.Settings.Get("noDataState").MustString("no_data"))
 	model.ExecutionErrorState = m.ExecutionErrorOption(ruleDef.Settings.Get("executionErrorState").MustString("alerting"))
+	model.FiringGroups = ruleDef.FiringGroups
 
 	for _, v := range ruleDef.Settings.Get("notifications").MustArray() {
 		jsonModel := simplejson.NewFromAny(v)
@@ -110,22 +113,45 @@ func NewRuleFromDBAlert(ruleDef *m.Alert) (*Rule, error) {
 		}
 	}
 
-	for index, condition := range ruleDef.Settings.Get("conditions").MustArray() {
-		conditionModel := simplejson.NewFromAny(condition)
-		conditionType := conditionModel.Get("type").MustString()
-		if factory, exist := conditionFactories[conditionType]; !exist {
-			return nil, ValidationError{Reason: "Unknown alert condition: " + conditionType, DashboardId: model.DashboardId, Alertid: model.Id, PanelId: model.PanelId}
-		} else {
-			if queryCondition, err := factory(conditionModel, index); err != nil {
-				return nil, ValidationError{Err: err, DashboardId: model.DashboardId, Alertid: model.Id, PanelId: model.PanelId}
+	for _, cg := range ruleDef.Settings.Get("conditionGroups").MustArray() {
+		var conditionGroup []Condition
+		for index, condition := range simplejson.NewFromAny(cg).MustArray() {
+			conditionModel := simplejson.NewFromAny(condition)
+			conditionType := conditionModel.Get("type").MustString()
+			if factory, exist := conditionFactories[conditionType]; !exist {
+				return nil, ValidationError{Reason: "Unknown alert condition: " + conditionType, DashboardId: model.DashboardId, Alertid: model.Id, PanelId: model.PanelId}
 			} else {
-				model.Conditions = append(model.Conditions, queryCondition)
+				if queryCondition, err := factory(conditionModel, index); err != nil {
+					return nil, ValidationError{Err: err, DashboardId: model.DashboardId, Alertid: model.Id, PanelId: model.PanelId}
+				} else {
+					model.Conditions = append(model.Conditions, queryCondition)
+					conditionGroup = append(conditionGroup, queryCondition)
+				}
 			}
 		}
+		model.ConditionGroups = append(model.ConditionGroups, conditionGroup)
 	}
 
-	if len(model.Conditions) == 0 {
-		return nil, fmt.Errorf("Alert is missing conditions")
+	// for index, condition := range ruleDef.Settings.Get("conditions").MustArray() {
+	// 	conditionModel := simplejson.NewFromAny(condition)
+	// 	conditionType := conditionModel.Get("type").MustString()
+	// 	if factory, exist := conditionFactories[conditionType]; !exist {
+	// 		return nil, ValidationError{Reason: "Unknown alert condition: " + conditionType, DashboardId: model.DashboardId, Alertid: model.Id, PanelId: model.PanelId}
+	// 	} else {
+	// 		if queryCondition, err := factory(conditionModel, index); err != nil {
+	// 			return nil, ValidationError{Err: err, DashboardId: model.DashboardId, Alertid: model.Id, PanelId: model.PanelId}
+	// 		} else {
+	// 			model.Conditions = append(model.Conditions, queryCondition)
+	// 		}
+	// 	}
+	// }
+
+	// if len(model.Conditions) == 0 {
+	// 	return nil, fmt.Errorf("Alert is missing conditions")
+	// }
+
+	if len(model.ConditionGroups) == 0 {
+		return nil, fmt.Errorf("Alert is missing condition groups")
 	}
 
 	return model, nil

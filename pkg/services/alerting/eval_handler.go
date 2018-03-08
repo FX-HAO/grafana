@@ -24,49 +24,94 @@ func NewEvalHandler() *DefaultEvalHandler {
 
 func (e *DefaultEvalHandler) Eval(context *EvalContext) {
 	firing := true
+	groupFiring := false
+	firingGroups := 0
 	noDataFound := true
 	conditionEvals := ""
 
-	for i := 0; i < len(context.Rule.Conditions); i++ {
-		condition := context.Rule.Conditions[i]
-		cr, err := condition.Eval(context)
-		if err != nil {
-			context.Error = err
-		}
+	for i := 0; i < len(context.Rule.ConditionGroups); i++ {
+		for j := 0; j < len(context.Rule.ConditionGroups[i]); j++ {
+			condition := context.Rule.ConditionGroups[i][j]
+			cr, err := condition.Eval(context)
+			if err != nil {
+				context.Error = err
+			}
 
-		// break if condition could not be evaluated
-		if context.Error != nil {
-			break
-		}
+			// break if condition could not be evaluated
+			if context.Error != nil {
+				break
+			}
 
-		if i == 0 {
-			firing = cr.Firing
-			noDataFound = cr.NoDataFound
-		}
+			if j == 0 {
+				firing = cr.Firing
+				noDataFound = cr.NoDataFound
+			}
 
-		// calculating Firing based on operator
-		if cr.Operator == "or" {
-			firing = firing || cr.Firing
-			noDataFound = noDataFound || cr.NoDataFound
-		} else {
-			firing = firing && cr.Firing
-			noDataFound = noDataFound && cr.NoDataFound
-		}
+			// calculating Firing based on operator
+			if cr.Operator == "or" {
+				firing = firing || cr.Firing
+				noDataFound = noDataFound || cr.NoDataFound
+			} else {
+				firing = firing && cr.Firing
+				noDataFound = noDataFound && cr.NoDataFound
+			}
 
-		if i > 0 {
-			conditionEvals = "[" + conditionEvals + " " + strings.ToUpper(cr.Operator) + " " + strconv.FormatBool(cr.Firing) + "]"
-		} else {
-			conditionEvals = strconv.FormatBool(firing)
-		}
+			if j > 0 {
+				conditionEvals = "[" + conditionEvals + " " + strings.ToUpper(cr.Operator) + " " + strconv.FormatBool(cr.Firing) + "]"
+			} else {
+				conditionEvals = strconv.FormatBool(firing)
+			}
 
-		context.EvalMatches = append(context.EvalMatches, cr.EvalMatches...)
+			context.EvalMatches = append(context.EvalMatches, cr.EvalMatches...)
+		}
+		if firing {
+			firingGroups++
+		}
+		groupFiring = groupFiring || firing
 	}
 
+	// for i := 0; i < len(context.Rule.Conditions); i++ {
+	// 	condition := context.Rule.Conditions[i]
+	// 	cr, err := condition.Eval(context)
+	// 	if err != nil {
+	// 		context.Error = err
+	// 	}
+
+	// 	// break if condition could not be evaluated
+	// 	if context.Error != nil {
+	// 		break
+	// 	}
+
+	// 	if i == 0 {
+	// 		firing = cr.Firing
+	// 		noDataFound = cr.NoDataFound
+	// 	}
+
+	// 	// calculating Firing based on operator
+	// 	if cr.Operator == "or" {
+	// 		firing = firing || cr.Firing
+	// 		noDataFound = noDataFound || cr.NoDataFound
+	// 	} else {
+	// 		firing = firing && cr.Firing
+	// 		noDataFound = noDataFound && cr.NoDataFound
+	// 	}
+
+	// 	if i > 0 {
+	// 		conditionEvals = "[" + conditionEvals + " " + strings.ToUpper(cr.Operator) + " " + strconv.FormatBool(cr.Firing) + "]"
+	// 	} else {
+	// 		conditionEvals = strconv.FormatBool(firing)
+	// 	}
+
+	// 	context.EvalMatches = append(context.EvalMatches, cr.EvalMatches...)
+	// }
+
 	context.ConditionEvals = conditionEvals + " = " + strconv.FormatBool(firing)
-	context.Firing = firing
+	context.Firing = groupFiring
+	context.FiringGroups = firingGroups
 	context.NoDataFound = noDataFound
 	context.EndTime = time.Now()
 	context.Rule.State = e.getNewState(context)
+	context.Rule.FiringGroups = firingGroups
 
 	elapsedTime := context.EndTime.Sub(context.StartTime).Nanoseconds() / int64(time.Millisecond)
 	metrics.M_Alerting_Execution_Time.Observe(float64(elapsedTime))

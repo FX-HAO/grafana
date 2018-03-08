@@ -12,34 +12,37 @@ import (
 )
 
 type EvalContext struct {
-	Firing          bool
-	IsTestRun       bool
-	EvalMatches     []*EvalMatch
-	Logs            []*ResultLogEntry
-	Error           error
-	ConditionEvals  string
-	StartTime       time.Time
-	EndTime         time.Time
-	Rule            *Rule
-	log             log.Logger
-	dashboardSlug   string
-	ImagePublicUrl  string
-	ImageOnDiskPath string
-	NoDataFound     bool
-	PrevAlertState  m.AlertStateType
+	Firing           bool
+	FiringGroups     int
+	IsTestRun        bool
+	EvalMatches      []*EvalMatch
+	Logs             []*ResultLogEntry
+	Error            error
+	ConditionEvals   string
+	StartTime        time.Time
+	EndTime          time.Time
+	Rule             *Rule
+	log              log.Logger
+	dashboardSlug    string
+	ImagePublicUrl   string
+	ImageOnDiskPath  string
+	NoDataFound      bool
+	PrevAlertState   m.AlertStateType
+	PrevFiringGroups int
 
 	Ctx context.Context
 }
 
 func NewEvalContext(alertCtx context.Context, rule *Rule) *EvalContext {
 	return &EvalContext{
-		Ctx:            alertCtx,
-		StartTime:      time.Now(),
-		Rule:           rule,
-		Logs:           make([]*ResultLogEntry, 0),
-		EvalMatches:    make([]*EvalMatch, 0),
-		log:            log.New("alerting.evalContext"),
-		PrevAlertState: rule.State,
+		Ctx:              alertCtx,
+		StartTime:        time.Now(),
+		Rule:             rule,
+		Logs:             make([]*ResultLogEntry, 0),
+		EvalMatches:      make([]*EvalMatch, 0),
+		log:              log.New("alerting.evalContext"),
+		PrevAlertState:   rule.State,
+		PrevFiringGroups: rule.FiringGroups,
 	}
 }
 
@@ -72,7 +75,7 @@ func (c *EvalContext) GetStateModel() *StateDescription {
 }
 
 func (c *EvalContext) ShouldUpdateAlertState() bool {
-	return c.Rule.State != c.PrevAlertState
+	return c.Rule.State != c.PrevAlertState || c.Rule.FiringGroups != c.PrevFiringGroups
 }
 
 func (a *EvalContext) GetDurationMs() float64 {

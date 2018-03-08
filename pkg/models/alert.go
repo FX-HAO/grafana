@@ -68,6 +68,7 @@ type Alert struct {
 	Message        string
 	Severity       string
 	State          AlertStateType
+	FiringGroups   int
 	Handler        int64
 	Silenced       bool
 	ExecutionError string
@@ -150,11 +151,12 @@ type PauseAllAlertCommand struct {
 }
 
 type SetAlertStateCommand struct {
-	AlertId  int64
-	OrgId    int64
-	State    AlertStateType
-	Error    string
-	EvalData *simplejson.Json
+	AlertId      int64
+	OrgId        int64
+	State        AlertStateType
+	Error        string
+	EvalData     *simplejson.Json
+	FiringGroups int
 
 	Timestamp time.Time
 }
