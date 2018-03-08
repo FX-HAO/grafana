@@ -345,9 +345,9 @@ func buildUpdates(engine *Engine, table *core.Table, bean interface{},
 				val = fieldValue.Interface()
 			}
 		case reflect.Int8, reflect.Int16, reflect.Int, reflect.Int32, reflect.Int64:
-			if !requiredField && fieldValue.Int() == 0 {
-				continue
-			}
+			// if !requiredField && fieldValue.Int() == 0 {
+			// 	continue
+			// }
 			val = fieldValue.Interface()
 		case reflect.Float32, reflect.Float64:
 			if !requiredField && fieldValue.Float() == 0.0 {
