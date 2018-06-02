@@ -4,6 +4,8 @@
 [Twitter](https://twitter.com/grafana) |
 [Community & Forum](https://community.grafana.com)
 
+**Note**: This is a fork that implements [alerting hysteresis](https://github.com/grafana/grafana/issues/6202)
+
 Grafana is an open source, feature rich metrics dashboard and graph editor for
 Graphite, Elasticsearch, OpenTSDB, Prometheus and InfluxDB.
 
